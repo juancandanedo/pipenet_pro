@@ -1,78 +1,77 @@
-# Le decimos a Python: "Oye, trae los planos que están en models.py"
+# --- 0. IMPORTACIONES ---
+# Ahora importamos también nuestras nuevas fórmulas
 from models import Nodo, Tuberia
-import networkx as nx # Importamos la herramienta para hacer mapas
+import calculos_hidraulicos as ch # ch es un apodo para "calculos_hidraulicos"
+import networkx as nx
 
-# --- 1. CREAMOS NUESTRAS PIEZAS (Nodos y Tuberías) ---
+# --- 1. CREAMOS NUESTRAS PIEZAS (CON MÁS DETALLES) ---
 print("Paso 1: Creando las piezas de nuestra red...")
 
-# Creamos los nodos. El rociador 1 pide 15 litros por segundo.
-# El rociador 2 pide 20. La bomba no pide nada.
+# Creamos los nodos como antes
 nodo_bomba = Nodo(id_nodo="Bomba", elevacion=100)
 nodo_union = Nodo(id_nodo="Union", elevacion=102)
-nodo_rociador1 = Nodo(id_nodo="Rociador1", elevacion=105, demanda=15.0)
-nodo_rociador2 = Nodo(id_nodo="Rociador2", elevacion=104, demanda=20.0)
+nodo_rociador1 = Nodo(id_nodo="Rociador1", elevacion=105, demanda=15.0) # 15 l/s
+nodo_rociador2 = Nodo(id_nodo="Rociador2", elevacion=104, demanda=20.0) # 20 l/s
 
-# Creamos las tuberías, diciendo qué nodos conectan.
-tuberia1 = Tuberia(id_tuberia="T1", nodo_inicio=nodo_bomba, nodo_fin=nodo_union)
-tuberia2 = Tuberia(id_tuberia="T2", nodo_inicio=nodo_union, nodo_fin=nodo_rociador1)
-tuberia3 = Tuberia(id_tuberia="T3", nodo_inicio=nodo_union, nodo_fin=nodo_rociador2)
+# Ahora creamos las tuberías con sus nuevos datos: Longitud, Diámetro en mm y Material
+tuberia1 = Tuberia(id_tuberia="T1", nodo_inicio=nodo_bomba, nodo_fin=nodo_union, longitud_m=50, diametro_mm=75, material="Acero")
+tuberia2 = Tuberia(id_tuberia="T2", nodo_inicio=nodo_union, nodo_fin=nodo_rociador1, longitud_m=30, diametro_mm=50, material="PVC")
+tuberia3 = Tuberia(id_tuberia="T3", nodo_inicio=nodo_union, nodo_fin=nodo_rociador2, longitud_m=40, diametro_mm=50, material="PVC")
 
-# Guardamos todas nuestras piezas en listas para tenerlas ordenadas.
 nodos = [nodo_bomba, nodo_union, nodo_rociador1, nodo_rociador2]
 tuberias = [tuberia1, tuberia2, tuberia3]
 
-# --- 2. CREAMOS EL MAPA DE LA RED ---
-# Usamos la herramienta 'networkx' para entender las conexiones
-G = nx.DiGraph() # DiGraph significa "Grafo Dirigido" (el agua va en una dirección)
-
-# Añadimos las tuberías como las "calles" de nuestro mapa.
-# Los nodos se añaden automáticamente.
+# --- 2. CÁLCULO DE CAUDALES (ESTO NO CAMBIA) ---
+print("\nPaso 2: Calculando los caudales...")
+G = nx.DiGraph()
 for t in tuberias:
-    G.add_edge(t.nodo_inicio.id, t.nodo_fin.id, data=t) # Guardamos el objeto tubería
+    G.add_edge(t.nodo_inicio.id, t.nodo_fin.id, data=t)
 
-# --- 3. LA RECETA PARA CALCULAR CAUDALES ---
-print("Paso 2: Calculando los caudales...")
+caudales_lps = {t.id: 0.0 for t in tuberias}
+demandas_lps = {n.id: n.demanda for n in nodos}
 
-# Un diccionario para guardar el caudal de cada tubería
-caudales = {t.id: 0.0 for t in tuberias}
-# Un diccionario para guardar la demanda de cada nodo
-demandas = {n.id: n.demanda for n in nodos}
-
-# La herramienta 'networkx' nos da los nodos en orden, desde el final hasta el principio.
-# Esto es perfecto para sumar caudales hacia atrás.
 nodos_en_orden_inverso = reversed(list(nx.topological_sort(G)))
 
 for nodo_id in nodos_en_orden_inverso:
-    # El caudal que sale de este nodo es su propia demanda
-    # más el caudal de todas las tuberías que ya hemos calculado que salen de él.
-    caudal_saliente_total = demandas[nodo_id]
-    for tuberia_saliente in G.successors(nodo_id):
-        # Buscamos la tubería que conecta nodo_id con tuberia_saliente
-        tuberia_obj = G.edges[nodo_id, tuberia_saliente]['data']
-        caudal_saliente_total += caudales[tuberia_obj.id]
+    caudal_saliente_total = demandas_lps[nodo_id]
+    for tuberia_saliente_id in G.successors(nodo_id):
+        tuberia_obj = G.edges[nodo_id, tuberia_saliente_id]['data']
+        caudal_saliente_total += caudales_lps[tuberia_obj.id]
     
-    # Ahora, buscamos la tubería que LLEGA a este nodo
-    # Su caudal debe ser igual a todo lo que sale del nodo.
     predecesores = list(G.predecessors(nodo_id))
     if predecesores:
         nodo_anterior_id = predecesores[0]
         tuberia_entrante = G.edges[nodo_anterior_id, nodo_id]['data']
-        caudales[tuberia_entrante.id] = caudal_saliente_total
+        caudales_lps[tuberia_entrante.id] = caudal_saliente_total
 
-# --- 4. ACTUALIZAMOS NUESTRAS PIEZAS Y MOSTRAMOS RESULTADOS ---
-print("¡Cálculo terminado! Actualizando piezas...")
-
-# Ponemos los resultados del cálculo en nuestros objetos de tubería
 for t in tuberias:
-    t.caudal_calculado = caudales[t.id]
+    # Guardamos el caudal en la unidad correcta (m³/s)
+    t.caudal_calculado_m3s = caudales_lps[t.id] / 1000
 
-print("\n--- RESULTADOS FINALES ---")
-print(tuberias)
+print("¡Caudales calculados!")
 
-print("\nAnálisis:")
-print(f"El agua que necesita el Rociador 1 es: {nodo_rociador1.demanda} l/s.")
-print(f"Por lo tanto, la Tubería 2 debe llevar: {tuberia2.caudal_calculado} l/s.")
-print(f"El agua que necesita el Rociador 2 es: {nodo_rociador2.demanda} l/s.")
-print(f"Por lo tanto, la Tubería 3 debe llevar: {tuberia3.caudal_calculado} l/s.")
-print(f"La Tubería 1 debe llevar el agua para AMBAS, así que su caudal es {tuberia2.caudal_calculado} + {tuberia3.caudal_calculado} = {tuberia1.caudal_calculado} l/s.")
-print(f"¡El caudal total que la bomba debe impulsar es {tuberia1.caudal_calculado} l/s!")
+# --- 3. ¡NUEVO! CÁLCULO DE PÉRDIDAS DE ENERGÍA ---
+print("\nPaso 3: Calculando las pérdidas por fricción...")
+
+for t in tuberias:
+    # Solo calculamos si hay agua pasando por la tubería
+    if t.caudal_calculado_m3s > 0:
+        # Usamos nuestras fórmulas una por una. ¡Como una receta de cocina!
+        # 1. Calcular velocidad
+        t.velocidad = ch.calcular_velocidad(t.caudal_calculado_m3s, t.diametro)
+        
+        # 2. Calcular Reynolds
+        t.reynolds = ch.calcular_reynolds(t.velocidad, t.diametro)
+        
+        # 3. Calcular factor de fricción
+        t.factor_friccion = ch.calcular_factor_friccion(t.reynolds, t.rugosidad_e, t.diametro)
+        
+        # 4. Calcular pérdida hf
+        t.perdida_friccion_hf = ch.calcular_perdida_friccion_hf(t.factor_friccion, t.longitud, t.diametro, t.velocidad)
+
+print("¡Pérdidas calculadas!")
+
+# --- 4. MOSTRAR RESULTADOS FINALES ---
+print("\n--- RESULTADOS FINALES DETALLADOS ---")
+for t in tuberias:
+    print(t)
