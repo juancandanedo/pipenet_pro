@@ -40,3 +40,29 @@ def calcular_factor_friccion(reynolds, rugosidad_e, diametro_m):
 def calcular_perdida_friccion_hf(factor_friccion_f, longitud_m, diametro_m, velocidad_ms):
     if diametro_m == 0: return 0
     return factor_friccion_f * (longitud_m / diametro_m) * (velocidad_ms**2) / (2 * G)
+# ... (las 4 funciones anteriores se quedan igual) ...
+
+# Fórmula 5: Calcular la pérdida de energía por accesorios (hl).
+def calcular_perdida_locales_hl(lista_accesorios, velocidad_ms):
+    # Diccionario de accesorios y su coeficiente de pérdida K.
+    # ¡Esta es nuestra base de datos de accesorios!
+    coeficientes_K = {
+        "Válvula de compuerta abierta": 0.2,
+        "Válvula de bola abierta": 0.1,
+        "Válvula de retención (check)": 2.5,
+        "Codo 90°": 0.9,
+        "Codo 45°": 0.4,
+        "Tee (paso directo)": 0.6,
+        "Tee (ramal)": 1.8,
+        "Entrada normal": 0.5,
+        "Salida de tubería": 1.0,
+    }
+    
+    k_total = 0
+    # Sumamos el coeficiente K de cada accesorio en la lista
+    for accesorio in lista_accesorios:
+        k_total += coeficientes_K.get(accesorio, 0) # .get() evita errores si un accesorio no está en el diccionario
+        
+    # La fórmula es: hl = K_total * (V^2 / 2g)
+    perdida_hl = k_total * (velocidad_ms**2) / (2 * G)
+    return perdida_hl
