@@ -42,8 +42,8 @@ async function calcularRed() {
   try {
     // Usamos axios para hacer la petición POST a nuestro backend.
     // La URL debe ser la de nuestro servidor Flask.
-    const response = await axios.post('http://127.0.0.1:5000/api/analyze', payload);
-    
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:5000'; // Usa la variable, o la local si no existe
+    const response = await axios.post(`${apiUrl}/api/analyze`, payload);    
     // Si todo va bien, guardamos los resultados que nos devuelve el backend.
     resultados.value = response.data;
     console.log("Resultados recibidos:", response.data);
